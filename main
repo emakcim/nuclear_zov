@@ -1,0 +1,77 @@
+def opros():
+    return int(input('Введите 0, если пользуетесь вебкамом или 1, если подключили камеру      '))
+
+import cv2
+import cv2.aruco as aruco
+import numpy as np
+import time
+
+while True:
+    try:
+        mode = opros()
+        if mode in [0, 1]:
+            break
+    except:
+        pass
+
+# 0 — индекс камеры (если у тебя одна камера, обычно 0)
+cap = cv2.VideoCapture(mode)
+
+if not cap.isOpened():
+    print("Не удалось открыть камеру")
+    exit()
+
+
+while True:
+    ret, frame = cap.read()  # считываем кадр
+    if not ret:
+        print("Не удалось получить кадр")
+        break
+
+    aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
+    parameters = aruco.DetectorParameters()
+
+    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(frame_gray, 127, 255, cv2.THRESH_BINARY)
+
+    contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    corners, ids, rejectedImgPoints = aruco.detectMarkers(frame_gray, aruco_dict, parameters=parameters)
+
+    for cnt in contours:
+        # Аппроксимируем контур многоугольником
+        epsilon = 0.02 * cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, epsilon, True)
+
+        # Если контур имеет 4 вершины — возможно прямоугольник
+        if len(approx) == 4:
+            # Дополнительно можно проверить, что контур выпуклый и площадь больше минимальной
+            if cv2.isContourConvex(approx) and cv2.contourArea(approx) > 1000:
+                # Рисуем контур
+                cv2.drawContours(frame, [approx], 0, (0, 255, 0), 3)
+
+    if ids is not None:
+        print(f"Обнаружены маркеры с ID: {ids.flatten()}")
+        # Отрисовка контуров вокруг найденных маркеров
+        aruco.drawDetectedMarkers(frame, corners, ids)
+    else:
+        print("Маркер не найден")
+    
+    print(corners)
+    
+    cv2.imshow('USB камера', frame)  # показываем кадр
+
+    # Нажми 'q' чтобы выйти
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+    # time.sleep(2.5)
+
+# Освобождаем ресурсы
+cap.release()
+cv2.destroyAllWindows()
+
+
+
+
+
+
