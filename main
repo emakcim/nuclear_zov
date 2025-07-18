@@ -1,5 +1,23 @@
 def opros():
-    return int(input('Введите 0, если пользуетесь вебкамом или 1, если подключили камеру      '))
+    return int(input('Введите 0, если пользуетесь вебкамом или 1, если подключили камеру: '))
+
+def center_trapation(tuple):
+    # Исходные координаты вершин трапеции (формат: array([[[x1, y1], [x2, y2], [x3, y3], [x4, y4]]])
+    vertices = tuple[0]
+    points = vertices.reshape(-1, 2)
+    center_x = np.mean(points[:, 0])
+    center_y = np.mean(points[:, 1])
+    return [center_x, center_y]
+
+
+def calibration(real_distance):
+    # либо первая и третья четверть, либо вторая и четвёртая
+
+
+    pixel_distance = 0
+    return pixel_distance / real_distance  # Пикселей на единицу длины (например, 50 px/см)
+
+
 
 import cv2
 import cv2.aruco as aruco
@@ -28,14 +46,16 @@ while True:
         print("Не удалось получить кадр")
         break
 
-    aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
+    good_square_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
+    bad_square_dict = aruco.getPredefinedDictionary(aruco.DICT_5X5_1000)
     parameters = aruco.DetectorParameters()
 
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(frame_gray, 127, 255, cv2.THRESH_BINARY)
 
     contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    corners, ids, rejectedImgPoints = aruco.detectMarkers(frame_gray, aruco_dict, parameters=parameters)
+    good_coordination, good_ids, _ = aruco.detectMarkers(frame_gray, good_square_dict, parameters=parameters)
+    bad_coordination, bad_ids, _ = aruco.detectMarkers(frame_gray, bad_square_dict, parameters=parameters)
 
     for cnt in contours:
         # Аппроксимируем контур многоугольником
@@ -49,14 +69,18 @@ while True:
                 # Рисуем контур
                 cv2.drawContours(frame, [approx], 0, (0, 255, 0), 3)
 
-    if ids is not None:
-        print(f"Обнаружены маркеры с ID: {ids.flatten()}")
+    if good_ids is not None:
+        print(f"Обнаружены маркеры с ID: {good_ids.flatten()}")
         # Отрисовка контуров вокруг найденных маркеров
-        aruco.drawDetectedMarkers(frame, corners, ids)
-    else:
-        print("Маркер не найден")
+        aruco.drawDetectedMarkers(frame, good_coordination, good_ids)
+        print(good_coordination)
+        print(good_ids)
+
+    if bad_ids is not None:
+        print(f"Обнаружены маркеры с ID: {bad_ids.flatten()}")
+        # Отрисовка контуров вокруг найденных маркеров
+        aruco.drawDetectedMarkers(frame, bad_coordination, bad_ids)
     
-    print(corners)
     
     cv2.imshow('USB камера', frame)  # показываем кадр
 
@@ -69,9 +93,3 @@ while True:
 # Освобождаем ресурсы
 cap.release()
 cv2.destroyAllWindows()
-
-
-
-
-
-
