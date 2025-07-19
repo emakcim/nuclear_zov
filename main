@@ -1,7 +1,7 @@
 import cv2
 import cv2.aruco as aruco
 from numpy import *
-import time
+from time import *
 from math import *
 
 A, B = 155.0, 400.0
@@ -27,11 +27,11 @@ def calibration(real_distance, all_good_markers):
     except:
         return 0, 0, 0
 
-def coordinations(centers, ids, px_ratio, a, b):
+def coordinations(centers, ids, rotation_mode, px_ratio, a, b):
     adapted_centers = {}
     for n in range(len(centers)):
         x, y = centers[n]
-        adapted_centers[str(ids[n])] = [x*px_ratio - A - a, B + b - y*px_ratio]
+        adapted_centers[str(ids[n])] = [x*px_ratio - A - a, B + b - y*px_ratio, rotation_mode[n]]
     return adapted_centers
 
 while True:
@@ -49,8 +49,12 @@ if not cap.isOpened():
     print("Не удалось открыть камеру")
     exit()
 
+counter = 5
+last_time = time()
+dict_good_markers = {}
+dict_bad_markers = {}
 
-while True:
+while counter > 0:
     ret, frame = cap.read()  # считываем кадр
     if not ret:
         print("Не удалось получить кадр")
@@ -60,6 +64,8 @@ while True:
 
     all_good_markers = []
     all_bad_markers = []
+    marker_angles_of_bad = []
+    marker_angles_of_good = []
     px_ratio = a = b = 0
 
     good_square_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
@@ -86,9 +92,27 @@ while True:
                 cv2.drawContours(frame_rotate, [approx], 0, (0, 255, 0), 3)
 
     if good_ids is not None:
-        print(f"Обнаружены маркеры с ID: {good_ids.flatten()}")
+        # print(f"Обнаружены маркеры с ID: {good_ids.flatten()}")
         # Отрисовка контуров вокруг найденных маркеров
         aruco.drawDetectedMarkers(frame_rotate, good_coordination, good_ids)
+
+        for i in range(len(good_ids)):
+            # Получаем углы текущего маркера
+            marker_corners = good_coordination[i].reshape((4, 2))
+            
+            # Вычисляем вектор между верхними углами
+            dx = marker_corners[1][0] - marker_corners[0][0]
+            dy = marker_corners[1][1] - marker_corners[0][1]
+            
+            # Вычисляем угол в градусах
+            angle_deg = degrees(arctan2(dy, dx))
+            
+            # Добавляем ID маркера и угол в список
+            marker_angles_of_good.append(angle_deg)
+            
+            # Выводим информацию для текущего маркера
+            print(f"Маркер ID {good_ids[i][0]}: угол поворота {angle_deg:.2f}°")
+
 
         # Объединение всех хороших точек. В том числе для дальнейшей калибровки.
 
@@ -99,8 +123,26 @@ while True:
 
 
     if bad_ids is not None:
-        print(f"Обнаружены маркеры с ID: {bad_ids.flatten()}")
+        # print(f"Обнаружены маркеры с ID: {bad_ids.flatten()}")
         # Отрисовка контуров вокруг найденных маркеров
+
+        for i in range(len(bad_ids)):
+            # Получаем углы текущего маркера
+            marker_corners = bad_coordination[i].reshape((4, 2))
+            
+            # Вычисляем вектор между верхними углами
+            dx = marker_corners[1][0] - marker_corners[0][0]
+            dy = marker_corners[1][1] - marker_corners[0][1]
+            
+            # Вычисляем угол в градусах
+            angle_deg = degrees(arctan2(dy, dx))
+            
+            # Добавляем ID маркера и угол в список
+            marker_angles_of_bad.append(angle_deg)
+            
+            # Выводим информацию для текущего маркера
+            print(f"Маркер ID {bad_ids[i][0]}: угол поворота {angle_deg:.2f}°")
+
         aruco.drawDetectedMarkers(frame_rotate, bad_coordination, bad_ids)
 
         for array in bad_coordination:
@@ -109,19 +151,24 @@ while True:
     # короче теперь все наши центры превращаем в словари, 
     # в которых указан тип маркера и его координаты для манипулятора
 
-    dict_good_markers = coordinations(all_good_markers, good_ids, px_ratio, a, b)
-    dict_bad_markers = coordinations(all_bad_markers, bad_ids, px_ratio, a, b)
-
-    print(dict_good_markers)
+    dict_good_markers = coordinations(all_good_markers, good_ids, marker_angles_of_good, px_ratio, a, b)
+    dict_bad_markers = coordinations(all_bad_markers, bad_ids, marker_angles_of_bad, px_ratio, a, b)
     
     cv2.imshow('USB камера', frame_rotate)  # показываем кадр
 
     # Нажми 'q' чтобы выйти
     if cv2.waitKey(1) & 0xFF == ord('q'):
+        # Освобождаем ресурсы
+        cap.release()
+        cv2.destroyAllWindows()
         break
+
+    if time() - last_time > 1.0:
+        print(f'У вас осталось {counter} секунд(-ы)!')
+        counter -= 1
+        last_time = time()
 
     # time.sleep(2.5)
 
-# Освобождаем ресурсы
-cap.release()
-cv2.destroyAllWindows()
+print(dict_good_markers)
+print(dict_bad_markers)
