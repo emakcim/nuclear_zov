@@ -4,6 +4,8 @@ from numpy import *
 import time
 from math import *
 
+A, B = 155.0, 400.0
+
 def opros():
     return int(input('Введите 0, если пользуетесь вебкамом или 1, если подключили камеру: '))
 
@@ -17,10 +19,20 @@ def center_trapation(vertices):
 
 def calibration(real_distance, all_good_markers):
     all_good_markers.sort()
-    pixel_distance = dist([all_good_markers[0], all_good_markers[-1]])
-    return pixel_distance / real_distance  # Пикселей на единицу длины (например, 50 px/см)
+    pixel_distance = dist(all_good_markers[0], all_good_markers[-1])
+    try:
+        rotatio = real_distance / pixel_distance
+        a, b = all_good_markers[-1]
+        return rotatio, a*rotatio, b*rotatio  # Пикселей на единицу длины (например, 50 px/см)
+    except:
+        return 0, 0, 0
 
-
+def coordinations(centers, ids, px_ratio, a, b):
+    adapted_centers = {}
+    for n in range(len(centers)):
+        x, y = centers[n]
+        adapted_centers[str(ids[n])] = [x*px_ratio - A - a, B + b - y*px_ratio]
+    return adapted_centers
 
 while True:
     try:
@@ -44,15 +56,17 @@ while True:
         print("Не удалось получить кадр")
         break
 
-    frame = cv2.rotate(frame, 180)
+    frame_rotate = cv2.rotate(frame, cv2.ROTATE_180)
 
     all_good_markers = []
+    all_bad_markers = []
+    px_ratio = a = b = 0
 
     good_square_dict = aruco.getPredefinedDictionary(aruco.DICT_4X4_1000)
     bad_square_dict = aruco.getPredefinedDictionary(aruco.DICT_5X5_1000)
     parameters = aruco.DetectorParameters()
 
-    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    frame_gray = cv2.cvtColor(frame_rotate, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(frame_gray, 127, 255, cv2.THRESH_BINARY)
 
     contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -69,34 +83,38 @@ while True:
             # Дополнительно можно проверить, что контур выпуклый и площадь больше минимальной
             if cv2.isContourConvex(approx) and cv2.contourArea(approx) > 1000:
                 # Рисуем контур
-                cv2.drawContours(frame, [approx], 0, (0, 255, 0), 3)
+                cv2.drawContours(frame_rotate, [approx], 0, (0, 255, 0), 3)
 
     if good_ids is not None:
         print(f"Обнаружены маркеры с ID: {good_ids.flatten()}")
         # Отрисовка контуров вокруг найденных маркеров
-        aruco.drawDetectedMarkers(frame, good_coordination, good_ids)
-        # print(good_coordination)
-        # print(good_ids)
+        aruco.drawDetectedMarkers(frame_rotate, good_coordination, good_ids)
 
         # Объединение всех хороших точек. В том числе для дальнейшей калибровки.
 
         for array in good_coordination:
             all_good_markers.append(center_trapation(array))
 
-        px_ratio = calibration(sqrt(180_000), all_good_markers)
+        px_ratio, a, b = calibration(sqrt(180_000), all_good_markers)
 
 
     if bad_ids is not None:
         print(f"Обнаружены маркеры с ID: {bad_ids.flatten()}")
         # Отрисовка контуров вокруг найденных маркеров
-        aruco.drawDetectedMarkers(frame, bad_coordination, bad_ids)
-    
+        aruco.drawDetectedMarkers(frame_rotate, bad_coordination, bad_ids)
 
+        for array in bad_coordination:
+            all_bad_markers.append(center_trapation(array))
 
-    
+    # короче теперь все наши центры превращаем в словари, 
+    # в которых указан тип маркера и его координаты для манипулятора
 
+    dict_good_markers = coordinations(all_good_markers, good_ids, px_ratio, a, b)
+    dict_bad_markers = coordinations(all_bad_markers, bad_ids, px_ratio, a, b)
+
+    print(dict_good_markers)
     
-    cv2.imshow('USB камера', frame)  # показываем кадр
+    cv2.imshow('USB камера', frame_rotate)  # показываем кадр
 
     # Нажми 'q' чтобы выйти
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -107,9 +125,3 @@ while True:
 # Освобождаем ресурсы
 cap.release()
 cv2.destroyAllWindows()
-
-
-
-
-
-
