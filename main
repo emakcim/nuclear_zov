@@ -17,12 +17,15 @@ def center_trapation(vertices):
     return [float(center_x), float(center_y)]
 
 
-def calibration(real_distance, all_good_markers):
-    all_good_markers.sort()
-    pixel_distance = dist(all_good_markers[0], all_good_markers[-1])
+def calibration(real_distance, all_good_markers, ids):
+    # all_good_markers.sort(key=lambda x: x[1])
+    # print(ids[all_good_markers.index(all_good_markers[0])], ids[all_good_markers.index(all_good_markers[-1])])
+    # pixel_distance = dist(all_good_markers[0], all_good_markers[-1])
+    list_ids = ids.tolist()
     try:
+        pixel_distance = dist(all_good_markers[list_ids.index([0])], all_good_markers[list_ids.index([3])])
         rotatio = real_distance / pixel_distance
-        a, b = all_good_markers[-1]
+        a, b = all_good_markers[list_ids.index([0])]
         return rotatio, a*rotatio, b*rotatio  # Пикселей на единицу длины (например, 50 px/см)
     except:
         return 0, 0, 0
@@ -111,7 +114,7 @@ while counter > 0:
             marker_angles_of_good.append(angle_deg)
             
             # Выводим информацию для текущего маркера
-            print(f"Маркер ID {good_ids[i][0]}: угол поворота {angle_deg:.2f}°")
+            # print(f"Маркер ID {good_ids[i][0]}: угол поворота {angle_deg:.2f}°")
 
 
         # Объединение всех хороших точек. В том числе для дальнейшей калибровки.
@@ -119,7 +122,7 @@ while counter > 0:
         for array in good_coordination:
             all_good_markers.append(center_trapation(array))
 
-        px_ratio, a, b = calibration(sqrt(180_000), all_good_markers)
+        px_ratio, a, b = calibration(300, all_good_markers, good_ids)
 
 
     if bad_ids is not None:
@@ -141,7 +144,7 @@ while counter > 0:
             marker_angles_of_bad.append(angle_deg)
             
             # Выводим информацию для текущего маркера
-            print(f"Маркер ID {bad_ids[i][0]}: угол поворота {angle_deg:.2f}°")
+            # print(f"Маркер ID {bad_ids[i][0]}: угол поворота {angle_deg:.2f}°")
 
         aruco.drawDetectedMarkers(frame_rotate, bad_coordination, bad_ids)
 
